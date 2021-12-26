@@ -102,6 +102,24 @@ in that mode the childframe is cleared as soon as point moves."
     (tab-bar-lines . 0))
   "Frame parameters used to create the frame.")
 
+(defvar eldoc-box-buffer-parameters
+  '((mode-line-format . nil)
+    (header-line-format . nil)
+    (tab-line-format . nil)
+    (tab-bar-format . nil) ;; Emacs 28 tab-bar-format
+    (frame-title-format . "")
+    (truncate-lines . t)
+    (cursor-in-non-selected-windows . nil)
+    (cursor-type . nil)
+    (show-trailing-whitespace . nil)
+    (display-line-numbers . nil)
+    (left-fringe-width . nil)
+    (right-fringe-width . nil)
+    (left-margin-width . 0)
+    (right-margin-width . 0)
+    (fringes-outside-margins . 0))
+  "Buffer parameters used for child frame.")
+
 (defcustom eldoc-box-max-pixel-width 800
   "Maximum width of doc childframe in pixel.
 Consider your machine's screen's resolution when setting this variable.
@@ -162,15 +180,17 @@ See `eldoc-box-inhibit-display-when-moving'."
 (defun eldoc-box--enable ()
   "Enable eldoc-box hover.
 Intended for internal use."
-  (add-function :before-while (local 'eldoc-message-function)
-                #'eldoc-box--eldoc-message-function)
+  (make-local-variable 'eldoc-display-functions)
+  (cl-pushnew 'eldoc-box--eldoc-display-function eldoc-display-functions)
+  (unless eldoc-box-only-multi-line
+    (setq-local eldoc-display-functions (cl-remove 'eldoc-display-in-echo-area eldoc-display-functions)))
   (when eldoc-box-clear-with-C-g
     (advice-add #'keyboard-quit :before #'eldoc-box-quit-frame)))
 
 (defun eldoc-box--disable ()
   "Disable eldoc-box hover.
 Intended for internal use."
-  (remove-function (local 'eldoc-message-function) #'eldoc-box--eldoc-message-function)
+  (kill-local-variable 'eldoc-display-functions)
   (advice-remove #'keyboard-quit #'eldoc-box-quit-frame)
   ;; if minor mode is turned off when childframe is visible
   ;; hide it
@@ -440,6 +460,15 @@ Display STR in childframe and ARGS works like `message'."
       single-line-p)))
 
 ;;;###autoload
+(defun eldoc-box-help-at-point ()
+  (interactive)
+  (let ((eldoc-display-functions '(eldoc-box--eldoc-display-function))
+        (eldoc-box-position-function #'eldoc-box--default-at-point-position-function)
+        (eldoc-box-clear-with-C-g t))
+    (eldoc-print-current-symbol-info t)))
+
+
+;;;###autoload
 (define-minor-mode eldoc-box-hover-mode
   "Displays hover documentations in a childframe.
 The default position of childframe is upper corner."
@@ -485,22 +514,24 @@ You can use \[keyboard-quit] to hide the doc."
     (declare-function jsonrpc-request "jsonrpc")
 
 
-    (defun eldoc-box-eglot-help-at-point ()
-      "Display documentation of the symbol at point."
-      (interactive)
-      (when eglot--managed-mode
-        (let ((eldoc-box-position-function #'eldoc-box--default-at-point-position-function))
-          (let ((hover-info
-                 (eglot--dbind ((Hover) contents range)
-                     (jsonrpc-request (eglot--current-server-or-lose) :textDocument/hover
-                                      (eglot--TextDocumentPositionParams))
-                   (when (seq-empty-p contents) (user-error "[eglot] No hover info here"))
-                   (eglot--hover-info contents range))))
-            (if hover-info
-                (eldoc-box--display hover-info)
-              (eglot--error "No hover info here"))))
-        (setq eldoc-box--help-at-point-last-point (point))
-        (run-with-timer 0.1 nil #'eldoc-box--help-at-point-cleanup)))))
+    (with-eval-after-load 'eglot
+  ;;;###autoload
+      (defun eldoc-box-eglot-help-at-point ()
+        "Display documentation of the symbol at point."
+        (interactive)
+        (when eglot--managed-mode
+          (let ((eldoc-box-position-function #'eldoc-box--default-at-point-position-function))
+            (let ((hover-info
+                   (eglot--dbind ((Hover) contents range)
+                       (jsonrpc-request (eglot--current-server-or-lose) :textDocument/hover
+                                        (eglot--TextDocumentPositionParams))
+                     (when (seq-empty-p contents) (user-error "[eglot] No hover info here"))
+                     (eglot--hover-info contents range))))
+              (if hover-info
+                  (eldoc-box--display hover-info)
+                (eglot--error "No hover info here"))))
+          (setq eldoc-box--help-at-point-last-point (point))
+          (run-with-timer 0.1 nil #'eldoc-box--help-at-point-cleanup))))))
 
 ;;;; Comany compatibility
 ;;

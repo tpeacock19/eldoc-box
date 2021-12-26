@@ -323,8 +323,8 @@ FRAME is the childframe, WINDOW is the primary window."
     (setq eldoc-box--inhibit-childframe t)
     (eldoc-box-quit-frame)
     (run-with-idle-timer sec nil
-                    (lambda ()
-                      (setq eldoc-box--inhibit-childframe nil)))))
+                         (lambda ()
+                           (setq eldoc-box--inhibit-childframe nil)))))
 
 (defun eldoc-box--follow-cursor ()
   "Make childframe follow cursor in at-point mode."
@@ -494,7 +494,7 @@ You can use \[keyboard-quit] to hide the doc."
                  (eglot--dbind ((Hover) contents range)
                      (jsonrpc-request (eglot--current-server-or-lose) :textDocument/hover
                                       (eglot--TextDocumentPositionParams))
-                   (when (seq-empty-p contents) (eglot--error "No hover info here"))
+                   (when (seq-empty-p contents) (user-error "[eglot] No hover info here"))
                    (eglot--hover-info contents range))))
             (if hover-info
                 (eldoc-box--display hover-info)

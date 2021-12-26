@@ -460,6 +460,18 @@ Display STR in childframe and ARGS works like `message'."
       single-line-p)))
 
 ;;;###autoload
+(defun eldoc-box-scroll-down ()
+  (interactive)
+  (with-selected-frame eldoc-box--frame
+    (funcall-interactively #'scroll-down-command 15)))
+
+;;;###autoload
+(defun eldoc-box-scroll-up ()
+  (interactive)
+  (with-selected-frame eldoc-box--frame
+    (funcall-interactively #'scroll-up-command 15)))
+
+;;;###autoload
 (defun eldoc-box-help-at-point ()
   (interactive)
   (let ((eldoc-display-functions '(eldoc-box--eldoc-display-function))
